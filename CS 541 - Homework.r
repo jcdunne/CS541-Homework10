@@ -1,8 +1,6 @@
-install.packages('versions')
+install.packages('tidyverse')
 install.packages('ggplot2')
-library(versions)
-#available.versions("sommer")
-install.versions("sommer", "3.1")
+install.packages('sommer')
 library(sommer)
 library(ggplot2)
 
@@ -50,8 +48,7 @@ head(PCs_pheno)
 EHT_pc1 = lm(formula = EarHT ~ PC1 + PC2, data = PCs_pheno)
 summary(EHT_pc1)
 
-selector = c('zagl1.2', 'zagl1.6','PZA00236.7','PZA01228.2',
-'PZA03351.1')
+selector = c('zagl1.2', 'zagl1.6','PZA00236.7','PZA01228.2', 'PZA03351.1')
 geno_sub = gmat[, selector]
 geno_sub[geno_sub == 1] = 0
 head(geno_sub)
@@ -71,11 +68,11 @@ rownames(K) = rownames(gmat)
 print(K[1:5,1:5])
 heatmap(K, symm = T)
 
-rand_mod = mmer2(fixed = dpoll ~ 1, random = ~g(Line), rcov = ~units, G = list(Line = K), data = All_pheno, silent = T)
+rand_mod = mmer(dpoll ~ 1, random = ~vsr(Line, Gu=K), rcov = ~units, nIters=3, data = All_pheno, verbose = FALSE)
 summary(rand_mod)
 
-Vg = rand_mod$var.comp$`g(Line)`
-Verr = rand_mod$var.comp$units
+Vg <- rand_mod$sigma$`u:Line`
+Verr <- rand_mod$sigma$`units`
 Vp = Vg + Verr
 h2 = Vg/Vp
 print(paste("Vg:", Vg))
@@ -83,7 +80,7 @@ print(paste("Verr:", Verr))
 print(paste("Vp:", Vp))
 print(paste("Heritability:", h2))
 
-mlm_ex = mmer2(fixed = dpoll ~ PC1, random = ~g(Line), rcov = ~units, G = list(Line = K), data = All_pheno, silent = T)
+mlm_ex = mmer(dpoll ~ PC1, random = ~vsr(Line, Gu=K), rcov = ~units, nIters=3, data = All_pheno, verbose = FALSE)
 summary(mlm_ex)
 
 # Add code here
@@ -98,9 +95,11 @@ head(test_set)
 pheno$dpoll_train = pheno$dpoll
 pheno[pheno$Line %in% test_set, "dpoll_train"] = NA
 
-gs_mod = mmer2(fixed = dpoll_train ~ 1, random = ~g(Line), rcov = ~units, G = list(Line = K), data = pheno, silent = T)
+gs_mod = mmer(dpoll ~ 1, random = ~vsr(Line, Gu=K), rcov = ~units, nIters=3, data = All_pheno, verbose = FALSE)
 summary(gs_mod)
 
-pheno$dpoll_pred = gs_mod$fitted.y
+
+pheno$dpoll_pred = gs_mod$U$`u:Line`$dpoll
+pheno$dpoll_pred = pheno$dpoll_pred+gs_mod$Beta$Estimate
 
 write.csv(pheno, file = 'predictions.csv', row.names = FALSE)
